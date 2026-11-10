@@ -1,10 +1,10 @@
 services:
   - type: web
     name: mock-seguros
-    runtime: python
+    runtime: node
     plan: free
-    buildCommand: pip install -r requirements.txt
-    startCommand: python mock_seguros.py
+    buildCommand: npm ci && npm run build
+    startCommand: npm run start:prod
     healthCheckPath: /health
     envVars:
       - key: MOCK_HOST
