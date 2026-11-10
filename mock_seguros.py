@@ -2,6 +2,7 @@
 import argparse
 import json
 import math
+import os
 import re
 from datetime import date
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -13,6 +14,7 @@ from uuid import uuid4
 
 BASE = "/api/v1/seguros-bolivar"
 ALTA = "/maestro-personas/api/v1/altas"
+HEALTH = "/health"
 SCHEMAS = json.loads(Path(__file__).with_name("schemas.json").read_text(encoding="utf-8"))
 SOURCES = {
     "estructura": "DATOS_ESTRUCTURA_ATS.xlsx",
@@ -280,6 +282,9 @@ class MockHandler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         url = urlsplit(self.path)
+        if url.path == HEALTH:
+            self.reply(200, {"status": "ok"})
+            return
         if url.path not in {f"{BASE}/carga-masiva", f"{BASE}/registro"}:
             self.reply(404)
             return
@@ -346,11 +351,23 @@ class MockHandler(BaseHTTPRequestHandler):
         return
 
 
+def default_port():
+    for name in ("PORT", "MOCK_PORT"):
+        raw = os.environ.get(name)
+        if raw:
+            return int(raw)
+    return 8080
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--host", default="127.0.0.1")
-    parser.add_argument("--port", type=int, default=8080)
-    parser.add_argument("--token", default="mock-seguros-local", help="Token sintético para los tres endpoints")
+    parser.add_argument("--host", default=os.environ.get("MOCK_HOST", "127.0.0.1"))
+    parser.add_argument("--port", type=int, default=default_port())
+    parser.add_argument(
+        "--token",
+        default=os.environ.get("MOCK_TOKEN", "mock-seguros-local"),
+        help="Token sintético para los tres endpoints (MOCK_TOKEN en el entorno)",
+    )
     parser.add_argument("--sample-alta", action="store_true", help="Imprime un JSON sintético válido y termina")
     args = parser.parse_args()
     if args.sample_alta:

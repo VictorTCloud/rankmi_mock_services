@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: mock-seguros
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python mock_seguros.py
+    healthCheckPath: /health
+    envVars:
+      - key: MOCK_HOST
+        value: 0.0.0.0
+      - key: MOCK_TOKEN
+        generateValue: true

@@ -1,60 +1,103 @@
-# Mock local de Seguros Bolívar
-
-Simula la carga inicial, la consulta individual y el alta exitosa de la integración de Magneto con Seguros Bolívar y Rankmi. Requiere Python 3.10 o posterior y usa únicamente la biblioteca estándar.
-
-## Ejecutar en Windows
-
-Extrae el ZIP, abre PowerShell en la carpeta extraída y ejecuta:
-
-    python .\mock_seguros.py
-
-El host local es http://127.0.0.1:8080. Usa esa URL base en Magneto si el consumidor corre en el mismo equipo. Envía este encabezado en los tres endpoints:
-
-    Authorization: Bearer mock-seguros-local
-
-Puedes cambiar el puerto y el token con --port y --token. El proceso escucha solo en el equipo local por defecto. Para consumirlo desde otro equipo, configura el host y el acceso de red del ambiente de pruebas antes de usar --host. Detén el proceso con Ctrl+C.
-
-## Probar en otra ventana de PowerShell
-
-    $base = 'http://127.0.0.1:8080'
-    $headers = @{ Authorization = 'Bearer mock-seguros-local' }
-
-    $carga = Invoke-RestMethod "$base/api/v1/seguros-bolivar/carga-masiva?page=1&pageSize=2" -Headers $headers
-    $carga | ConvertTo-Json -Depth 10
-
-    $tipos = @('estructura', 'contrato')
-    for ($i = 0; $i -lt $tipos.Count; $i++) {
-        $tipo = $tipos[$i]
-        $llave = [uri]::EscapeDataString($carga.data[$i].key)
-        Invoke-RestMethod "$base/api/v1/seguros-bolivar/registro?type=$tipo&key=$llave" -Headers $headers |
-            ConvertTo-Json -Depth 10
-    }
-
-    $alta = (python .\mock_seguros.py --sample-alta) -join [Environment]::NewLine
-    Invoke-RestMethod "$base/maestro-personas/api/v1/altas" -Method Post -Headers $headers -ContentType 'application/json' -Body $alta
-
---sample-alta también permite copiar el JSON en Postman. Los GET responden con mark y data[]. Cada registro incluye key, source y fields. El alta devuelve transaction_id, magneto_id, user_id y contract_id sin conectarse a Rankmi.
-
-## Convenciones provisionales del mock
-
-- La paginación empieza en 1. La carga contiene 20 perfiles ficticios, cada uno con su estructura y contrato. Los 40 registros se recorren en 20 páginas con pageSize=2. La página 21 devuelve data como lista vacía.
-- Ante las diferencias de la v2.3, se usan VICEPRESIDENCIA y CentroDeCosto numérico según las tablas. CategoriaAsignacion se emite una sola vez. La llave de estructura se arma con POSITION_CODE y el mismo EMAIL_ADDRESS del registro.
-- El POST acepta magneto_id como campo adicional opcional. Lo devuelve si viene en la solicitud y genera uno sintético si se omite. Las fechas se validan como cadenas yyyy-mm-dd. También se aceptan cadenas vacías en last_height_course_date y contract_end_date, como en el ejemplo.
-- El token se compara con el valor de prueba configurado. El mock opera en memoria con datos sintéticos. El alta de ejemplo usa el perfil ficticio de Bogotá. Las correspondencias entre valores de prueba sirven únicamente para el mock.
-- La primera entrega cubre solicitudes válidas. Los rechazos básicos con cuerpo vacío sirven para operar el mock local. Los escenarios de error del cliente y las entregas incrementales están fuera del alcance acordado.
-
-El diccionario de campos está en schemas.json. La fuente técnica es la propuesta de contratos Seguros Bolívar · Magneto · Rankmi v2.3, secciones A, B y C.
-
-## Contenedor y despliegue para un grupo de prueba
-
-Imagen Docker en la raíz del repo (`Dockerfile`). Obligatorio: variable `MOCK_TOKEN` (el entrypoint la pasa como `--token`).
-
-| Escenario | Directorio | Acceso |
-|-----------|------------|--------|
-| Correos corporativos + zona en Cloudflare (HTTPS, Access) | [deploy/cloudflare](deploy/cloudflare/) | Túnel nombrado + política Access; luego Bearer del mock |
-| Sin exposición pública (solo tailnet), sin Docker | [deploy/tailscale-native](deploy/tailscale-native/) | MagicDNS / IP Tailscale + Bearer del mock |
-| Sin exposición pública (solo tailnet), con Docker | [deploy/tailscale](deploy/tailscale/) | Mismo acceso vía contenedor Tailscale |
-
-Guías paso a paso en cada `README.md`. Para desarrollo local sin Docker sigue siendo válido `python mock_seguros.py`.
-
 # rankmi_mock_services
+
+Mock HTTP de la integración **Seguros Bolívar · Magneto · Rankmi**: carga masiva paginada, consulta por llave y alta de persona. Requiere **Python 3.10+** y solo la biblioteca estándar (`requirements.txt` existe para el runtime de Render).
+
+Datos sintéticos en memoria; el contrato de campos está en `schemas.json`. Referencia técnica: propuesta de contratos v2.3, secciones A, B y C.
+
+## Ejecutar en local
+
+```bash
+python mock_seguros.py
+```
+
+Por defecto escucha en `http://127.0.0.1:8080`. En los **tres endpoints de negocio** envía:
+
+```http
+Authorization: Bearer mock-seguros-local
+```
+
+| Parámetro | CLI | Variable de entorno | Default local |
+|-----------|-----|---------------------|---------------|
+| Host | `--host` | `MOCK_HOST` | `127.0.0.1` |
+| Puerto | `--port` | `PORT` o `MOCK_PORT` | `8080` |
+| Token | `--token` | `MOCK_TOKEN` | `mock-seguros-local` |
+
+En local el proceso solo escucha en loopback salvo que pases `--host 0.0.0.0` o `MOCK_HOST=0.0.0.0`. Detén con Ctrl+C.
+
+Para imprimir un JSON de alta válido (Postman, pruebas) sin levantar el servidor:
+
+```bash
+python mock_seguros.py --sample-alta
+```
+
+### Windows (PowerShell)
+
+```powershell
+$base = 'http://127.0.0.1:8080'
+$headers = @{ Authorization = 'Bearer mock-seguros-local' }
+
+$carga = Invoke-RestMethod "$base/api/v1/seguros-bolivar/carga-masiva?page=1&pageSize=2" -Headers $headers
+$carga | ConvertTo-Json -Depth 10
+
+$tipos = @('estructura', 'contrato')
+for ($i = 0; $i -lt $tipos.Count; $i++) {
+    $tipo = $tipos[$i]
+    $llave = [uri]::EscapeDataString($carga.data[$i].key)
+    Invoke-RestMethod "$base/api/v1/seguros-bolivar/registro?type=$tipo&key=$llave" -Headers $headers |
+        ConvertTo-Json -Depth 10
+}
+
+$alta = (python .\mock_seguros.py --sample-alta) -join [Environment]::NewLine
+Invoke-RestMethod "$base/maestro-personas/api/v1/altas" -Method Post -Headers $headers -ContentType 'application/json' -Body $alta
+```
+
+### Linux / macOS (curl)
+
+```bash
+BASE=http://127.0.0.1:8080
+AUTH="Authorization: Bearer mock-seguros-local"
+
+curl -sS -H "$AUTH" "$BASE/api/v1/seguros-bolivar/carga-masiva?page=1&pageSize=2"
+curl -sS "$BASE/health"
+```
+
+## Endpoints
+
+| Método | Ruta | Auth |
+|--------|------|------|
+| GET | `/health` | No (health check; p. ej. Render) |
+| GET | `/api/v1/seguros-bolivar/carga-masiva?page=&pageSize=` | Bearer |
+| GET | `/api/v1/seguros-bolivar/registro?type=&key=` | Bearer |
+| POST | `/maestro-personas/api/v1/altas` | Bearer (`application/json`) |
+
+Los GET responden con `mark` y `data[]` (cada ítem: `key`, `source`, `fields`). El alta responde `transaction_id`, `magneto_id`, `user_id` y `contract_id` sin llamar a Rankmi.
+
+## Convenciones del mock
+
+- La paginación empieza en 1. Hay 20 perfiles ficticios (estructura + contrato cada uno → 40 registros en la carga). Con `pageSize=2` hay 20 páginas; la página 21 devuelve `data` vacía.
+- Se usan `VICEPRESIDENCIA` y `CentroDeCosto` numérico según las tablas v2.3. `CategoriaAsignacion` se emite una sola vez. La llave de estructura combina `POSITION_CODE` y `EMAIL_ADDRESS`.
+- El POST acepta `magneto_id` opcional; si falta, se genera uno sintético. Fechas en formato `yyyy-mm-dd`; `last_height_course_date` y `contract_end_date` pueden ir vacíos.
+- Alcance acordado: solicitudes válidas y rechazos básicos; escenarios de error del cliente fuera de alcance.
+
+## Desplegar en Render
+
+Archivo [`render.yaml`](render.yaml) en la raíz: **New → Blueprint** en [Render](https://render.com) y conecta el repo, o crea un **Web Service** manual con la misma configuración.
+
+| Campo | Valor |
+|-------|--------|
+| Build | `pip install -r requirements.txt` |
+| Start | `python mock_seguros.py` |
+| Health check | `/health` |
+| `MOCK_HOST` | `0.0.0.0` |
+| `MOCK_TOKEN` | Secreto largo (el Blueprint puede generarlo con `generateValue: true`) |
+
+Render inyecta `PORT`; no hace falta definirlo. Tras el deploy, la base URL es `https://<nombre-del-servicio>.onrender.com` con el mismo Bearer en los tres endpoints de negocio.
+
+```bash
+BASE="https://<tu-servicio>.onrender.com"
+curl -sS "$BASE/health"
+curl -sS -H "Authorization: Bearer <MOCK_TOKEN>" \
+  "$BASE/api/v1/seguros-bolivar/carga-masiva?page=1&pageSize=2"
+```
+
+En el plan **free** el servicio puede dormir por inactividad (cold start en la primera petición). La URL es pública: usa un token fuerte y compártelo solo con el grupo de prueba.
