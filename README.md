@@ -44,4 +44,16 @@ Puedes cambiar el puerto y el token con --port y --token. El proceso escucha sol
 - La primera entrega cubre solicitudes válidas. Los rechazos básicos con cuerpo vacío sirven para operar el mock local. Los escenarios de error del cliente y las entregas incrementales están fuera del alcance acordado.
 
 El diccionario de campos está en schemas.json. La fuente técnica es la propuesta de contratos Seguros Bolívar · Magneto · Rankmi v2.3, secciones A, B y C.
+
+## Contenedor y despliegue para un grupo de prueba
+
+Imagen Docker en la raíz del repo (`Dockerfile`). Obligatorio: variable `MOCK_TOKEN` (el entrypoint la pasa como `--token`).
+
+| Escenario | Directorio | Acceso |
+|-----------|------------|--------|
+| Correos corporativos + zona en Cloudflare (HTTPS, Access) | [deploy/cloudflare](deploy/cloudflare/) | Túnel nombrado + política Access; luego Bearer del mock |
+| Sin exposición pública (solo tailnet) | [deploy/tailscale](deploy/tailscale/) | MagicDNS / IP Tailscale + Bearer del mock |
+
+Guías paso a paso en cada `README.md`. Para desarrollo local sin Docker sigue siendo válido `python mock_seguros.py`.
+
 # rankmi_mock_services

@@ -1,0 +1,12 @@
+.git
+.gitignore
+**/__pycache__
+*.pyc
+.env
+.venv
+venv
+temp/
+deploy/**/.env
+deploy/**/cloudflared/*.json
+deploy/**/cloudflared/cert.pem
+README.md
