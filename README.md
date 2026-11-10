@@ -52,7 +52,8 @@ Imagen Docker en la raíz del repo (`Dockerfile`). Obligatorio: variable `MOCK_T
 | Escenario | Directorio | Acceso |
 |-----------|------------|--------|
 | Correos corporativos + zona en Cloudflare (HTTPS, Access) | [deploy/cloudflare](deploy/cloudflare/) | Túnel nombrado + política Access; luego Bearer del mock |
-| Sin exposición pública (solo tailnet) | [deploy/tailscale](deploy/tailscale/) | MagicDNS / IP Tailscale + Bearer del mock |
+| Sin exposición pública (solo tailnet), sin Docker | [deploy/tailscale-native](deploy/tailscale-native/) | MagicDNS / IP Tailscale + Bearer del mock |
+| Sin exposición pública (solo tailnet), con Docker | [deploy/tailscale](deploy/tailscale/) | Mismo acceso vía contenedor Tailscale |
 
 Guías paso a paso en cada `README.md`. Para desarrollo local sin Docker sigue siendo válido `python mock_seguros.py`.
 
